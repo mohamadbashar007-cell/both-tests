@@ -27,8 +27,8 @@ export const MatrixRenderer: React.FC<RendererProps> = ({ question, type, option
     <div
       className={
         isMain
-          ? "w-full min-h-[290px] flex items-center justify-center"
-          : "w-full h-[85px] flex items-center justify-center"
+          ? "w-full h-full min-h-0 flex items-center justify-center"
+          : "w-full h-full min-h-0 flex items-center justify-center"
       }
     >
       <img
@@ -39,8 +39,8 @@ export const MatrixRenderer: React.FC<RendererProps> = ({ question, type, option
         draggable={false}
         className={
           isMain
-            ? "max-w-full max-h-[290px] object-contain bg-white border border-slate-200 rounded-lg shadow-inner"
-            : "max-w-full max-h-[78px] object-contain pointer-events-none select-none"
+            ? "max-w-full max-h-full object-contain bg-white border border-slate-200 rounded-lg shadow-inner"
+            : "max-w-full max-h-full object-contain pointer-events-none select-none"
         }
       />
     </div>

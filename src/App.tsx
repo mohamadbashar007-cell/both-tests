@@ -58,10 +58,10 @@ export default function App() {
             <img
               src={publicAsset("logo.jpg")}
               alt={isAr ? "شعار مؤسسة الإمام أحمد بن حنبل" : "Imam Ahmad ibn Hanbal Foundation logo"}
-              className="h-14 md:h-20 w-auto object-contain"
+              className={`${stage === "session" ? "h-9 md:h-14" : "h-14 md:h-20"} w-auto object-contain`}
               draggable={false}
             />
-            <p className="mt-2 text-sm md:text-lg text-gray-800 font-extrabold leading-tight">
+            <p className={`${stage === "session" ? "hidden md:block mt-1 text-sm" : "mt-2 text-sm md:text-lg"} text-gray-800 font-extrabold leading-tight`}>
               {isAr ? "مؤسسة الإمام أحمد بن حنبل" : "Imam Ahmad ibn Hanbal Foundation"}
             </p>
           </div>

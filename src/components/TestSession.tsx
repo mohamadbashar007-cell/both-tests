@@ -87,8 +87,8 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
   const goNext = () => setCurrentIndex((previous) => Math.min(QUESTIONS.length - 1, previous + 1));
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4" dir={isAr ? "rtl" : "ltr"}>
-      <div className="flex flex-col md:flex-row justify-between items-stretch gap-4 border-b border-gray-200 pb-4 mb-6">
+    <div className="max-w-7xl mx-auto py-2 md:py-4 px-2 md:px-4" dir={isAr ? "rtl" : "ltr"}>
+      <div className="flex flex-col md:flex-row justify-between items-stretch gap-2 md:gap-4 border-b border-gray-200 pb-2 md:pb-4 mb-3 md:mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={onQuit}
@@ -119,8 +119,8 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <aside className="lg:col-span-3 bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-6 items-start">
+        <aside className="hidden lg:block lg:col-span-3 bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h4 className="font-bold text-gray-900 text-sm">
               {isAr ? `التقدم: ${totalAnswered} من 60` : `Progress: ${totalAnswered} / 60`}
@@ -171,8 +171,40 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
           })}
         </aside>
 
-        <section className="lg:col-span-9 space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+        <section className="lg:col-span-9 space-y-3 md:space-y-5">
+          <div className="lg:hidden bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-xs font-bold text-gray-700">
+                {isAr ? `السؤال ${currentIndex + 1} من 60` : `Item ${currentIndex + 1} of 60`}
+              </span>
+              <span className="text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded font-bold">
+                {Math.round((totalAnswered / QUESTIONS.length) * 100)}%
+              </span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {QUESTIONS.map((question, index) => {
+                const isCurrent = index === currentIndex;
+                const isAnswered = Boolean(answers[question.id]);
+                return (
+                  <button
+                    key={question.id}
+                    onClick={() => jumpToQuestion(index)}
+                    className={`h-8 min-w-8 rounded text-[11px] font-bold border ${
+                      isCurrent
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : isAnswered
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "bg-gray-50 text-gray-500 border-gray-200"
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 flex items-center gap-3">
             <span className="w-10 h-10 rounded bg-slate-100 border border-slate-200 text-slate-900 flex items-center justify-center font-extrabold text-lg">
               {currentQuestion.set}
             </span>
@@ -186,26 +218,26 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-            <div className="md:col-span-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-5 items-start">
+            <div className="md:col-span-6 space-y-2 md:space-y-3">
               <div className="flex justify-between items-center px-1">
-                <h3 className="font-extrabold text-gray-950 text-xl">
+                <h3 className="font-extrabold text-gray-950 text-base md:text-xl">
                   {isAr ? "صورة السؤال" : "Question Image"}
                 </h3>
                 <span className="text-[10px] text-gray-500 font-bold bg-gray-100 border border-gray-200 px-2.5 py-1 rounded">
                   ID: {currentQuestion.id}
                 </span>
               </div>
-              <div className="bg-gray-100 rounded-lg border border-gray-200 p-6 flex items-center justify-center shadow-inner relative overflow-hidden">
+              <div className="bg-gray-100 rounded-lg border border-gray-200 p-2 md:p-4 flex items-center justify-center shadow-inner relative overflow-hidden h-[30dvh] min-h-[150px] max-h-[300px] md:h-[58dvh] md:min-h-[330px] md:max-h-[560px]">
                 <MatrixRenderer question={currentQuestion} type="main" />
               </div>
             </div>
 
-            <div className="md:col-span-6 space-y-4">
-              <h3 className="text-xs font-bold text-gray-600 uppercase px-1">
+            <div className="md:col-span-6 space-y-2 md:space-y-3">
+              <h3 className="text-[11px] md:text-xs font-bold text-gray-600 uppercase px-1">
                 {isAr ? "اختر الجزء الذي يكمل النمط:" : "Select the piece that completes the pattern:"}
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {Array.from({ length: currentQuestion.optionsCount }).map((_, index) => {
                   const optIdx = index + 1;
                   const isSelected = answers[currentQuestion.id] === optIdx;
@@ -213,7 +245,7 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
                     <button
                       key={optIdx}
                       onClick={() => selectOption(optIdx)}
-                      className={`relative rounded-lg p-3 border transition text-center group cursor-pointer ${
+                      className={`relative rounded-lg p-1.5 md:p-2 border transition text-center group cursor-pointer min-h-[56px] h-[9dvh] max-h-[82px] md:h-[12dvh] md:min-h-[86px] md:max-h-[128px] ${
                         isSelected
                           ? "border-slate-900 bg-slate-50 ring-2 ring-slate-200"
                           : "border-gray-200 bg-gray-50 hover:bg-white hover:border-slate-800 hover:shadow-sm"
@@ -222,7 +254,7 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
                       <span className={`absolute top-2 left-2 text-[10px] font-bold ${isSelected ? "text-slate-900" : "text-gray-400"}`}>
                         {optIdx}
                       </span>
-                      <div className="pt-4 pb-2">
+                      <div className="pt-3 pb-1 h-full">
                         <MatrixRenderer question={currentQuestion} type="option" optionIndex={optIdx} />
                       </div>
                     </button>
@@ -232,11 +264,11 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
             </div>
           </div>
 
-          <div className="flex gap-4 pt-6 border-t border-gray-200">
+          <div className="flex gap-2 md:gap-4 pt-3 md:pt-5 border-t border-gray-200">
             <button
               onClick={goPrevious}
               disabled={currentIndex === 0}
-              className={`flex-1 py-4 font-bold rounded-lg transition flex items-center justify-center gap-2 border text-sm ${
+              className={`flex-1 py-3 md:py-4 font-bold rounded-lg transition flex items-center justify-center gap-2 border text-sm ${
                 currentIndex === 0
                   ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
                   : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200 cursor-pointer"
@@ -249,14 +281,14 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
             {isLastQuestion ? (
               <button
                 onClick={() => setConfirmSubmitOpen(true)}
-                className="flex-[2] py-4 bg-slate-900 text-white font-bold rounded-lg shadow hover:bg-slate-800 transition flex items-center justify-center gap-2 cursor-pointer text-sm"
+                className="flex-[2] py-3 md:py-4 bg-slate-900 text-white font-bold rounded-lg shadow hover:bg-slate-800 transition flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
                 {isAr ? "إنهاء وعرض النتيجة" : "Finish and View Result"}
               </button>
             ) : (
               <button
                 onClick={goNext}
-                className="flex-[2] py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-[2] py-3 md:py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-sm transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{isAr ? "السؤال التالي" : "Next Question"}</span>
                 <ArrowRight className="w-4 h-4" />
