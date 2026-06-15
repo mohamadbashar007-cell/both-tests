@@ -171,7 +171,15 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
           })}
         </aside>
 
-        <section className="lg:col-span-9 space-y-3 md:space-y-5">
+        <section
+          className="lg:col-span-9 space-y-3 md:space-y-5"
+          style={
+            {
+              "--matrix-main-width": "clamp(300px, 42vw, 520px)",
+              "--matrix-option-width": "clamp(86px, 12vw, 148px)",
+            } as React.CSSProperties
+          }
+        >
           <div className="lg:hidden bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
             <div className="flex items-center justify-between gap-3 mb-2">
               <span className="text-xs font-bold text-gray-700">
@@ -218,8 +226,8 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-5 items-start">
-            <div className="md:col-span-6 space-y-2 md:space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(300px,var(--matrix-main-width))_minmax(280px,1fr)] gap-3 md:gap-5 items-start">
+            <div className="space-y-2 md:space-y-3">
               <div className="flex justify-between items-center px-1">
                 <h3 className="font-extrabold text-gray-950 text-base md:text-xl">
                   {isAr ? "صورة السؤال" : "Question Image"}
@@ -228,16 +236,16 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
                   ID: {currentQuestion.id}
                 </span>
               </div>
-              <div className="bg-gray-100 rounded-lg border border-gray-200 p-2 md:p-4 flex items-center justify-center shadow-inner relative overflow-hidden h-[30dvh] min-h-[150px] max-h-[300px] md:h-[58dvh] md:min-h-[330px] md:max-h-[560px]">
+              <div className="bg-gray-100 rounded-lg border border-gray-200 p-2 md:p-4 flex items-center justify-center shadow-inner relative overflow-hidden h-[calc(var(--matrix-main-width)*0.67)] min-h-[190px] max-h-[360px] md:max-h-[420px]">
                 <MatrixRenderer question={currentQuestion} type="main" />
               </div>
             </div>
 
-            <div className="md:col-span-6 space-y-2 md:space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <h3 className="text-[11px] md:text-xs font-bold text-gray-600 uppercase px-1">
                 {isAr ? "اختر الجزء الذي يكمل النمط:" : "Select the piece that completes the pattern:"}
               </h3>
-              <div className="grid grid-cols-2 gap-2 md:gap-3">
+              <div className="grid grid-cols-2 gap-2 md:gap-3 justify-items-center">
                 {Array.from({ length: currentQuestion.optionsCount }).map((_, index) => {
                   const optIdx = index + 1;
                   const isSelected = answers[currentQuestion.id] === optIdx;
@@ -245,7 +253,11 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
                     <button
                       key={optIdx}
                       onClick={() => selectOption(optIdx)}
-                      className={`relative rounded-lg p-1.5 md:p-2 border transition text-center group cursor-pointer min-h-[56px] h-[9dvh] max-h-[82px] md:h-[12dvh] md:min-h-[86px] md:max-h-[128px] ${
+                      style={{
+                        width: "calc(var(--matrix-option-width) + 34px)",
+                        height: "calc(var(--matrix-option-width) * 0.72 + 28px)",
+                      }}
+                      className={`relative rounded-lg p-1.5 md:p-2 border transition text-center group cursor-pointer min-w-[120px] max-w-full min-h-[90px] ${
                         isSelected
                           ? "border-slate-900 bg-slate-50 ring-2 ring-slate-200"
                           : "border-gray-200 bg-gray-50 hover:bg-white hover:border-slate-800 hover:shadow-sm"
@@ -254,7 +266,7 @@ export const TestSession: React.FC<TestSessionProps> = ({ participant, lang, onF
                       <span className={`absolute top-2 left-2 text-[10px] font-bold ${isSelected ? "text-slate-900" : "text-gray-400"}`}>
                         {optIdx}
                       </span>
-                      <div className="pt-3 pb-1 h-full">
+                      <div className="pt-4 pb-1 h-full">
                         <MatrixRenderer question={currentQuestion} type="option" optionIndex={optIdx} />
                       </div>
                     </button>
