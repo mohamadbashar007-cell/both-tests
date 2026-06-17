@@ -2,12 +2,13 @@
   "name": "raven-spm-intelligence-test",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://mohamadbashar007-cell.github.io/both-tests/",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
+    "predeploy": "pnpm build",
+    "deploy": "gh-pages -d dist -r https://github.com/mohamadbashar007-cell/both-tests.git",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
