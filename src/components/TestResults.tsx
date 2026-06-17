@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import type { ParticipantInfo } from "../App";
 import { QUESTIONS } from "../data/questions";
 import { lookupPercentileAndGrade } from "../data/norms";
 import { Award, FileText, RefreshCw } from "lucide-react";
+import { saveTestRecord } from "../services/testRecords";
 
 interface TestResultsProps {
   answers: Record<string, number>;
@@ -41,6 +42,37 @@ const getIqValue = (percentile: number, isAr: boolean) => {
   if (percentile >= 25) return "85 - 114";
   if (percentile >= 5) return "70 - 84";
   return isAr ? "أقل من 70" : "Below 70";
+};
+
+const buildReportSnapshot = (selector: string, title: string) => {
+  const reportElement = document.querySelector(selector);
+
+  if (!reportElement) {
+    return "";
+  }
+
+  const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+    .map((node) => node.outerHTML)
+    .join("\n");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  ${styles}
+  <style>
+    body { margin: 0; background: #fff; }
+    .snapshot-actions { padding: 16px; text-align: left; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .snapshot-actions button { background: #0f172a; color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+    @media print { .snapshot-actions { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="snapshot-actions"><button onclick="window.print()">Save / Print PDF</button></div>
+  ${reportElement.outerHTML}
+</body>
+</html>`;
 };
 
 const getNarrative = (percentile: number, isAr: boolean) => {
@@ -137,9 +169,11 @@ export const TestResults: React.FC<TestResultsProps> = ({
   answers,
   timeSpentSeconds,
   participant,
+  mode,
   lang,
   onRestart,
 }) => {
+  const hasSavedRecord = useRef(false);
   const isAr = lang === "ar";
   let scoreOf60 = 0;
   const setCorrectScores: Record<SetKey, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
@@ -162,6 +196,53 @@ export const TestResults: React.FC<TestResultsProps> = ({
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date());
+
+  useEffect(() => {
+    if (hasSavedRecord.current) {
+      return;
+    }
+
+    hasSavedRecord.current = true;
+    void saveTestRecord({
+      testType: "raven-spm",
+      participantName: participant.fullName,
+      payload: {
+        participant,
+        mode,
+        language: lang,
+        scoreOf60,
+        answeredCount,
+        timeSpentSeconds,
+        percentile: result.percentile,
+        grade: lang === "ar" ? result.labelAr : result.labelEn,
+        normGroup: lang === "ar" ? result.ageLabelAr : result.ageLabelEn,
+        setCorrectScores,
+        answers,
+        reportHtml: buildReportSnapshot(".report-sheet", lang === "ar" ? "تقرير اختبار رافن" : "Raven Test Report"),
+        report: {
+          title: lang === "ar" ? "تقرير اختبار رافن" : "Raven Test Report",
+          createdAt: new Date().toISOString(),
+          printable: true,
+        },
+      },
+    }).catch(() => {
+      hasSavedRecord.current = false;
+    });
+  }, [
+    answeredCount,
+    answers,
+    lang,
+    mode,
+    participant,
+    result.ageLabelAr,
+    result.ageLabelEn,
+    result.labelAr,
+    result.labelEn,
+    result.percentile,
+    scoreOf60,
+    setCorrectScores,
+    timeSpentSeconds,
+  ]);
 
   const handlePrint = () => window.print();
 

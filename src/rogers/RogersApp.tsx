@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Brain, 
   Award, 
@@ -22,12 +22,47 @@ import { intelligences, questions, IntelligenceDetail } from "./data/intelligenc
 import { IntelligenceChart } from "./components/IntelligenceChart";
 import { PrintableReport } from "./components/PrintableReport";
 import { InstitutionLogo, InstitutionLogoLarge } from "./components/InstitutionLogo";
+import { saveTestRecord } from "../services/testRecords";
+import type { AppLang } from "../App";
 
 type ScreenState = "welcome" | "quiz" | "results";
 
 const STORAGE_KEY_STATE = "multiple_intelligences_quiz_state";
 
-export default function App() {
+const buildReportSnapshot = (selector: string, title: string) => {
+  const reportElement = document.querySelector(selector);
+
+  if (!reportElement) {
+    return "";
+  }
+
+  const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+    .map((node) => node.outerHTML)
+    .join("\n");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  ${styles}
+  <style>
+    body { margin: 0; background: #fff; }
+    .snapshot-actions { padding: 16px; text-align: left; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .snapshot-actions button { background: #0f172a; color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+    @media print { .snapshot-actions { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="snapshot-actions"><button onclick="window.print()">Save / Print PDF</button></div>
+  ${reportElement.outerHTML}
+</body>
+</html>`;
+};
+
+export default function App({ lang }: { lang: AppLang }) {
+  const isAr = lang === "ar";
+  const hasSavedRecord = useRef(false);
   const [screen, setScreen] = useState<ScreenState>("welcome");
   const [username, setUsername] = useState<string>("");
   const [gradeOrSchool, setGradeOrSchool] = useState<string>("");
@@ -49,6 +84,10 @@ export default function App() {
       const savedState = localStorage.getItem(STORAGE_KEY_STATE);
       if (savedState) {
         const parsed = JSON.parse(savedState);
+        if (parsed.screen === "results") {
+          localStorage.removeItem(STORAGE_KEY_STATE);
+          return;
+        }
         if (parsed.username) setUsername(parsed.username);
         if (parsed.gradeOrSchool) setGradeOrSchool(parsed.gradeOrSchool);
         if (parsed.answers) setAnswers(parsed.answers);
@@ -87,8 +126,11 @@ export default function App() {
       return;
     }
     setErrorMessage(null);
+    setAnswers({});
+    setCurrentPage(0);
+    hasSavedRecord.current = false;
     setScreen("quiz");
-    saveStateToStorage("quiz", answers, currentPage);
+    saveStateToStorage("quiz", {}, 0);
   };
 
   const handleChoiceSelect = (questionId: number, value: number) => {
@@ -183,6 +225,39 @@ export default function App() {
   const topIntelligence = sortedUserIntelligences[0];
   const secondIntelligence = sortedUserIntelligences[1];
 
+  useEffect(() => {
+    if (screen !== "results" || hasSavedRecord.current || !topIntelligence) {
+      return;
+    }
+
+    hasSavedRecord.current = true;
+    const answerCount = Object.keys(answers).length;
+    void saveTestRecord({
+      testType: "rogers-multiple-intelligences",
+      participantName: username,
+      payload: {
+        participant: {
+          fullName: username,
+          gradeOrSchool,
+        },
+        language: lang,
+        answerCount,
+        answers,
+        scores,
+        topIntelligence: topIntelligence.name,
+        secondIntelligence: secondIntelligence?.name ?? "",
+        reportHtml: buildReportSnapshot("#report-preview-area", "Rogers Report") || buildReportSnapshot("#printable-area", "Rogers Report"),
+        report: {
+          title: "تقرير مقياس روجرز للذكاءات المتعددة",
+          createdAt: new Date().toISOString(),
+          printable: true,
+        },
+      },
+    }).catch(() => {
+      hasSavedRecord.current = false;
+    });
+  }, [answers, gradeOrSchool, lang, screen, scores, secondIntelligence, topIntelligence, username]);
+
   const handlePrintReport = async () => {
     const html2pdf = (window as any).html2pdf;
     if (html2pdf) {
@@ -222,27 +297,33 @@ export default function App() {
   const getLevelInfo = (score: number) => {
     if (score >= 27) {
       return {
-        label: "مرتفع جداً (ذكاء سائد)",
+        label: isAr ? "مرتفع جداً (ذكاء سائد)" : "Very high (dominant)",
         color: "bg-emerald-50 text-emerald-800 border-emerald-200",
         barColor: "bg-emerald-600",
         percentage: Math.round((score / 35) * 100),
-        desc: "أنت تتميز بقدرات استثنائية وسائدة تماماً في هذا النمط، وتشعر بمتعة بالغة وارتياح دائم عند تشغيله."
+        desc: isAr
+          ? "أنت تتميز بقدرات استثنائية وسائدة تماماً في هذا النمط، وتشعر بمتعة بالغة وارتياح دائم عند تشغيله."
+          : "This domain is a strong and dominant preference in your profile."
       };
     } else if (score >= 16) {
       return {
-        label: "متوسط (مستعد وجاهز)",
+        label: isAr ? "متوسط (مستعد وجاهز)" : "Moderate",
         color: "bg-blue-50 text-blue-800 border-blue-200",
         barColor: "bg-blue-600",
         percentage: Math.round((score / 35) * 100),
-        desc: "أنت تميل لقبول استخدام هذا النمط وتشعر براحة كافية لديه، وهو جاهز تماماً لكي يتكامل لمستويات أعلى مع قليل من الاهتمام."
+        desc: isAr
+          ? "أنت تميل لقبول استخدام هذا النمط وتشعر براحة كافية لديه، وهو جاهز تماماً لكي يتكامل لمستويات أعلى مع قليل من الاهتمام."
+          : "This domain is usable and ready to develop further with focused practice."
       };
     } else {
       return {
-        label: "منخفض (منطقة تطوير إضافية)",
+        label: isAr ? "منخفض (منطقة تطوير إضافية)" : "Low (development area)",
         color: "bg-slate-50 text-slate-700 border-slate-200",
         barColor: "bg-slate-400",
         percentage: Math.round((score / 35) * 100),
-        desc: "هذا النمط يقع خارج نقاط تفضيلك الفورية؛ ويحتاج لبذل وعي ومجهود منظم للارتقاء بمهاراته بمرور الأيام."
+        desc: isAr
+          ? "هذا النمط يقع خارج نقاط تفضيلك الفورية؛ ويحتاج لبذل وعي ومجهود منظم للارتقاء بمهاراته بمرور الأيام."
+          : "This domain is less preferred and may benefit from structured development."
       };
     }
   };
@@ -250,9 +331,12 @@ export default function App() {
   const selectedIntelDetail = intelligences.find((i) => i.id === selectedResultIntelligenceId) || intelligences[0];
   const selectedIntelScore = scores[selectedIntelDetail.id] || 0;
   const selectedIntelLevel = getLevelInfo(selectedIntelScore);
+  const scaleLabels = isAr
+    ? ["نادر جداً", "أحياناً قليلة", "أحياناً", "عادةً", "دائماً"]
+    : ["Very rare", "Rarely", "Sometimes", "Usually", "Always"];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100 flex flex-col antialiased relative" dir="rtl">
+    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100 flex flex-col antialiased relative" dir={isAr ? "rtl" : "ltr"}>
       
       {/* Dynamic interactive background gradient bubbles */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-200/20 rounded-full blur-3xl pointer-events-none" />
@@ -266,8 +350,10 @@ export default function App() {
             <InstitutionLogo />
             <div>
               <h1 className="font-extrabold text-base md:text-lg text-slate-900 tracking-tight leading-tight flex items-center gap-2">
-                منصة مقياس روجرز التقييمية
-                <span className="text-[10px] bg-amber-150 bg-amber-50 text-amber-800 font-bold px-2.5 py-0.5 rounded-full border border-amber-200">مؤسسة الإمام أحمد ابن حنبل</span>
+                {isAr ? "منصة مقياس روجرز التقييمية" : "Rogers Assessment Platform"}
+                <span className="text-[10px] bg-amber-150 bg-amber-50 text-amber-800 font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                  {isAr ? "مؤسسة الإمام أحمد ابن حنبل" : "Imam Ahmad ibn Hanbal Foundation"}
+                </span>
               </h1>
               <p className="text-[11px] text-slate-500 font-medium">إعداد الأستاذة عبير قويدر</p>
             </div>
@@ -289,7 +375,7 @@ export default function App() {
                 className="p-1 px-3 text-xs font-semibold text-rose-600 hover:text-white border border-rose-200 hover:bg-rose-600 rounded-full transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>إعادة الاختبار</span>
+                <span>{isAr ? "إعادة الاختبار" : "Restart"}</span>
               </button>
             )}
           </div>
@@ -308,7 +394,7 @@ export default function App() {
               <InstitutionLogoLarge />
 
               <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-2">
-                مقياس روجرز
+                {isAr ? "مقياس روجرز" : "Rogers Scale"}
               </h2>
               <p className="text-xs md:text-sm font-bold text-indigo-600 mt-1">
                 
@@ -317,38 +403,44 @@ export default function App() {
             </div>
 
             <p className="text-slate-600 text-xs md:text-sm leading-relaxed text-center mb-8 max-w-2xl mx-auto">
-              مرحباً بك في أحدث منصة إلكترونية لتحديد أنماط وخبايا الذكاء الذاتي والقدرات العصبية للمرشحين. يعتمد هذا الاختبار على تدوين <span className="font-extrabold text-indigo-700">56 معياراً سلوكياً دقيقاً</span> ومقسماً بالتساوي عبر ثمانية نطاقات للذكاء البشري. سيقوم التقييم بحساب درجاتك وتزويدك بنوافذ تفصيلية مناسبة لتوجيه مساراتك الدراسية وحياتك المهنيه، مع إتاحة <span className="font-extrabold text-indigo-600">تنزيل تقرير PDF معتمد</span> لنتائجك.
+              {isAr ? (
+                <>مرحباً بك في أحدث منصة إلكترونية لتحديد أنماط وخبايا الذكاء الذاتي والقدرات العصبية للمرشحين. يعتمد هذا الاختبار على تدوين <span className="font-extrabold text-indigo-700">56 معياراً سلوكياً دقيقاً</span> ومقسماً بالتساوي عبر ثمانية نطاقات للذكاء البشري. سيقوم التقييم بحساب درجاتك وتزويدك بنوافذ تفصيلية مناسبة لتوجيه مساراتك الدراسية وحياتك المهنيه، مع إتاحة <span className="font-extrabold text-indigo-600">تنزيل تقرير PDF معتمد</span> لنتائجك.</>
+              ) : (
+                <>This assessment records <span className="font-extrabold text-indigo-700">56 behavioral items</span> across eight intelligence domains and produces a detailed printable PDF report.</>
+              )}
             </p>
 
             {/* Instruction block */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-8">
               <h3 className="text-xs font-black text-slate-800 mb-2.5 flex items-center gap-1.5">
                 <HelpCircle className="w-4 h-4 text-indigo-600" />
-                كيف تجيب على الأسئلة؟
+                {isAr ? "كيف تجيب على الأسئلة؟" : "How to answer"}
               </h3>
               <p className="text-slate-600 text-xs leading-relaxed mb-3">
-                اقرأ كل عبارة بتمعن، ثم حدد الإجابة الأكثر موافقة لأسلوب عيشك وواقعك الفعلي بناءً على المقياس الخماسي التالي:
+                {isAr
+                  ? "اقرأ كل عبارة بتمعن، ثم حدد الإجابة الأكثر موافقة لأسلوب عيشك وواقعك الفعلي بناءً على المقياس الخماسي التالي:"
+                  : "Read each statement carefully, then choose the answer that best matches your actual behavior using this five-point scale:"}
               </p>
               <div className="grid grid-cols-5 gap-1 text-center font-bold text-[10px] md:text-xs">
                 <div className="p-2 rounded-lg bg-rose-50 text-rose-850 border border-rose-100">
                   <p className="font-mono text-sm leading-none mb-1">1</p>
-                  <p>نادر جداً</p>
+                  <p>{scaleLabels[0]}</p>
                 </div>
                 <div className="p-2 rounded-lg bg-orange-50 text-orange-850 border border-orange-100">
                   <p className="font-mono text-sm leading-none mb-1">2</p>
-                  <p>أحياناً قليلة</p>
+                  <p>{scaleLabels[1]}</p>
                 </div>
                 <div className="p-2 rounded-lg bg-yellow-50/70 text-yellow-850 border border-yellow-100">
                   <p className="font-mono text-sm leading-none mb-1">3</p>
-                  <p>أحياناً</p>
+                  <p>{scaleLabels[2]}</p>
                 </div>
                 <div className="p-2 rounded-lg bg-indigo-50 text-indigo-850 border border-indigo-100 animate-pulse">
                   <p className="font-mono text-sm leading-none mb-1">4</p>
-                  <p>عادةً</p>
+                  <p>{scaleLabels[3]}</p>
                 </div>
                 <div className="p-2 rounded-lg bg-indigo-600 text-white border border-indigo-700 shadow-sm shadow-indigo-600/10">
                   <p className="font-mono text-sm leading-none mb-1">5</p>
-                  <p>دائماً</p>
+                  <p>{scaleLabels[4]}</p>
                 </div>
               </div>
             </div>
@@ -360,7 +452,7 @@ export default function App() {
                 <div className="space-y-1.5 text-right">
                   <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
                     <User className="w-3.5 h-3.5 text-emerald-600" />
-                    اسم المرشح الكامل: <span className="text-red-500">*</span>
+                    {isAr ? "اسم المرشح الكامل:" : "Candidate full name:"} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -378,7 +470,7 @@ export default function App() {
                 <div className="space-y-1.5 text-right">
                   <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
                     <School className="w-3.5 h-3.5 text-emerald-600" />
-                   اسم نادي الطفل:
+                   {isAr ? "اسم نادي الطفل:" : "Child club / school:"}
                   </label>
                   <input
                     type="text"
@@ -403,7 +495,7 @@ export default function App() {
                   type="submit"
                   className="w-full sm:w-auto bg-slate-900 text-white font-extrabold px-8 py-3.5 rounded-2xl hover:bg-emerald-700 transition-all duration-300 shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
-                  <span>بدء الاختبار المعتمد ونظام التقييم</span>
+                  <span>{isAr ? "بدء الاختبار المعتمد ونظام التقييم" : "Start assessment"}</span>
                   <ArrowRight className="w-4 h-4 text-white rotate-180" />
                 </button>
 
@@ -416,7 +508,9 @@ export default function App() {
                     }}
                     className="w-full sm:w-auto text-slate-700 border border-slate-300 font-bold px-6 py-3.5 rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
                   >
-                    <span>استكمال الجلسة السابقة ({Object.keys(answers).length} سؤالاً تمت الإجابة عليها)</span>
+                    <span>
+                      {isAr ? `استكمال الجلسة السابقة (${Object.keys(answers).length} سؤالاً تمت الإجابة عليها)` : `Resume previous session (${Object.keys(answers).length} answered)`}
+                    </span>
                   </button>
                 )}
               </div>
@@ -434,21 +528,21 @@ export default function App() {
               <div className="text-right w-full md:w-auto">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] bg-slate-100 text-slate-800 border border-slate-200 uppercase tracking-widest font-bold px-2 py-0.5 rounded">
-                    الصفحة {currentPage + 1} من {TOTAL_PAGES}
+                    {isAr ? `الصفحة ${currentPage + 1} من ${TOTAL_PAGES}` : `Page ${currentPage + 1} of ${TOTAL_PAGES}`}
                   </span>
                   <span className="text-xs font-semibold text-indigo-700">
-                    تمت الإجابة على {Object.keys(answers).length} من 56 عبارة
+                    {isAr ? `تمت الإجابة على ${Object.keys(answers).length} من 56 عبارة` : `${Object.keys(answers).length} of 56 answered`}
                   </span>
                 </div>
                 <h3 className="font-extrabold text-sm md:text-base text-slate-800">
-                  يرجى قراءة بنود الصفحة بكل أمانة ومراجعة الاختيار الأنسب لك
+                  {isAr ? "يرجى قراءة بنود الصفحة بكل أمانة ومراجعة الاختيار الأنسب لك" : "Read each item carefully and choose the most suitable response."}
                 </h3>
               </div>
 
               {/* Progress Bar container */}
               <div className="w-full md:w-64 space-y-1.5 flex flex-col">
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 font-mono">
-                  <span>المعدل الإجمالي:</span>
+                  <span>{isAr ? "المعدل الإجمالي:" : "Overall progress:"}</span>
                   <span>{Math.round((Object.keys(answers).length / 56) * 100)}%</span>
                 </div>
                 <div className="w-full h-2.5 bg-slate-100 border border-slate-200 rounded-full overflow-hidden">
@@ -504,11 +598,11 @@ export default function App() {
 
                             const getChoiceLabel = () => {
                               switch(val) {
-                                case 1: return "نادر";
-                                case 2: return "أحياناً قليلة";
-                                case 3: return "أحياناً";
-                                case 4: return "عادةً";
-                                case 5: return "دائماً";
+                                case 1: return isAr ? "نادر" : "Rare";
+                                case 2: return isAr ? "أحياناً قليلة" : "Rarely";
+                                case 3: return isAr ? "أحياناً" : "Sometimes";
+                                case 4: return isAr ? "عادةً" : "Usually";
+                                case 5: return isAr ? "دائماً" : "Always";
                                 default: return "";
                               }
                             };
@@ -557,7 +651,7 @@ export default function App() {
                   }`}
                 >
                   <ArrowRight className="w-4 h-4" />
-                  <span>الصفحة السابقة</span>
+                  <span>{isAr ? "الصفحة السابقة" : "Previous page"}</span>
                 </button>
 
                 <div className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-slate-400">
@@ -589,7 +683,11 @@ export default function App() {
                   onClick={handleNextPage}
                   className="px-6 py-3 rounded-xl bg-indigo-600 border border-indigo-600 font-extrabold text-xs text-white hover:bg-indigo-700 hover:border-indigo-700 transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10 font-sans"
                 >
-                  <span>{currentPage === TOTAL_PAGES - 1 ? "حساب واستعراض النتائج" : "الصفحة التالية"}</span>
+                  <span>
+                    {currentPage === TOTAL_PAGES - 1
+                      ? isAr ? "حساب واستعراض النتائج" : "Calculate and show results"
+                      : isAr ? "الصفحة التالية" : "Next page"}
+                  </span>
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 
@@ -608,13 +706,17 @@ export default function App() {
               <div className="text-right space-y-2">
                 <div className="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-800 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 font-sans">
                   <CheckCircle2 className="w-4 h-4 text-indigo-600 animate-bounce" />
-                  <span>تهانينا! لقد أتممت مقياس الذكاءات بنجاح</span>
+                  <span>{isAr ? "تهانينا! لقد أتممت مقياس الذكاءات بنجاح" : "Assessment completed successfully"}</span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black text-slate-900">
-                  لوحة تشخيص وتفسير الذكاء السلوكي
+                  {isAr ? "لوحة تشخيص وتفسير الذكاء السلوكي" : "Behavioral Intelligence Results"}
                 </h2>
                 <p className="text-xs md:text-sm text-slate-600 max-w-xl">
-                  توضح المخططات والقراءات أدناه تفصيلاً دقيقاً لمجموع درجات الأنماط الثمانية للمرشح <span className="font-bold text-slate-900">{username}</span>. اضغط على أي ذكاء في المخطط أو القائمة الجانبية لتصفح تحليله التفصيلي.
+                  {isAr ? (
+                    <>توضح المخططات والقراءات أدناه تفصيلاً دقيقاً لمجموع درجات الأنماط الثمانية للمرشح <span className="font-bold text-slate-900">{username}</span>. اضغط على أي ذكاء في المخطط أو القائمة الجانبية لتصفح تحليله التفصيلي.</>
+                  ) : (
+                    <>The charts below summarize the eight intelligence-domain scores for <span className="font-bold text-slate-900">{username}</span>.</>
+                  )}
                 </p>
               </div>
 
@@ -632,12 +734,12 @@ export default function App() {
                   {isGeneratingPdf ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>جاري إعداد وتحميل مستند الـ PDF...</span>
+                      <span>{isAr ? "جاري إعداد وتحميل مستند الـ PDF..." : "Preparing PDF..."}</span>
                     </>
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      <span>تنزيل تقرير PDF المعتمد المطبوع</span>
+                      <span>{isAr ? "تنزيل تقرير PDF المعتمد المطبوع" : "Download printable PDF report"}</span>
                     </>
                   )}
                 </button>
@@ -651,7 +753,7 @@ export default function App() {
               <div className="lg:col-span-5 bg-white border border-slate-200 p-5 rounded-3xl shadow-xl flex flex-col gap-4">
                 <div>
                   <h3 className="font-extrabold text-sm md:text-base border-r-4 border-indigo-600 pr-2 pb-0.5">
-                    البروفايل الهندسي للذكاءات
+                    {isAr ? "البروفايل الهندسي للذكاءات" : "Intelligence Profile"}
                   </h3>
                   <p className="text-[11px] text-slate-500 mt-1 font-sans">اضغط على النطاقات لقراءة تحليل كامل عنها</p>
                 </div>
@@ -665,13 +767,13 @@ export default function App() {
                 {/* Domination highlights */}
                 <div className="border-t border-slate-100 pt-4 flex flex-col gap-2 text-xs">
                   <div className="flex justify-between items-center bg-indigo-50/60 p-2.5 text-right rounded-xl border border-indigo-100/55">
-                    <span className="font-black text-[12px] text-indigo-950">الذكاء الأول السائد:</span>
+                    <span className="font-black text-[12px] text-indigo-950">{isAr ? "الذكاء الأول السائد:" : "Primary intelligence:"}</span>
                     <span className="font-bold text-indigo-805 text-indigo-800 flex items-center gap-1">
                       <Sparkles className="w-3.5 h-3.5" /> {topIntelligence.name} ({topIntelligence.score} درجة)
                     </span>
                   </div>
                   <div className="flex justify-between items-center bg-slate-50 p-2.5 text-right rounded-xl border border-slate-200">
-                    <span className="font-black text-[12px] text-slate-700">الذكاء المساعد الثانوي:</span>
+                    <span className="font-black text-[12px] text-slate-700">{isAr ? "الذكاء المساعد الثانوي:" : "Secondary intelligence:"}</span>
                     <span className="font-bold text-slate-900">
                       {secondIntelligence.name} ({secondIntelligence.score} درجة)
                     </span>
@@ -696,7 +798,7 @@ export default function App() {
                       
                       {/* Score Badge */}
                       <div className="flex flex-col items-center justify-center text-center bg-slate-900 text-white rounded-2xl p-2 px-4 shadow-md">
-                        <span className="text-[9px] font-bold text-slate-400">الدرجة المحققة</span>
+                        <span className="text-[9px] font-bold text-slate-400">{isAr ? "الدرجة المحققة" : "Score"}</span>
                         <span className="font-bold text-lg leading-tight">{selectedIntelScore} <span className="text-xs text-slate-400">/ 35</span></span>
                       </div>
                     </div>
@@ -709,7 +811,7 @@ export default function App() {
                       <div className="flex justify-between text-xs font-extrabold text-neutral-800 items-center">
                         <span className="flex items-center gap-1.5 select-none">
                           <Activity className="w-4 h-4 text-slate-600 animate-pulse" />
-                          مستوى التمكن:
+                          {isAr ? "مستوى التمكن:" : "Level:"}
                         </span>
                         <span className={`px-2 py-0.5 rounded border ${selectedIntelLevel.color} text-[11px] font-bold`}>
                           {selectedIntelLevel.label}
@@ -833,9 +935,11 @@ export default function App() {
                 <div className="text-right">
                   <h3 className="font-extrabold text-sm md:text-base text-slate-800 flex items-center gap-2">
                     <Layers className="w-5 h-5 text-indigo-600 animate-pulse" />
-                    <span>📄 معاينة وثيقة التقرير المطبوع الرسمية (مقياس A4)</span>
+                    <span>{isAr ? "📄 معاينة وثيقة التقرير المطبوع الرسمية (مقياس A4)" : "Printable report preview (A4)"}</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-1">توضح هذه المعاينة التفاعلية الترتيب النهائي للتقرير المعتمد كملف PDF مطبوع.</p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {isAr ? "توضح هذه المعاينة التفاعلية الترتيب النهائي للتقرير المعتمد كملف PDF مطبوع." : "This preview shows the printable report layout."}
+                  </p>
                 </div>
                 
                 <button
@@ -850,12 +954,12 @@ export default function App() {
                   {isGeneratingPdf ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>جاري الحفظ كـ PDF...</span>
+                      <span>{isAr ? "جاري الحفظ كـ PDF..." : "Saving PDF..."}</span>
                     </>
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      <span>تنفيذ الحفظ والطباعة كـ PDF</span>
+                      <span>{isAr ? "تنفيذ الحفظ والطباعة كـ PDF" : "Save / print PDF"}</span>
                     </>
                   )}
                 </button>
@@ -887,8 +991,12 @@ export default function App() {
       {/* 4. Footer credits bar (Hidden in printer) */}
       <footer className="no-print bg-slate-900 text-slate-400 py-6 text-center border-t border-slate-850 mt-auto text-xs">
         <div className="max-w-6xl mx-auto px-4 space-y-2">
-          <p className="font-bold text-slate-300">نظام تقييم الذكاءات المتعددة الشامل © {new Date().getFullYear()}</p>
-          <p className="text-[10px] text-slate-500">تم تطوير البرنامج بالكامل بالتكامل مع إدارة التعليم ورعاية الموهوبين لدعم قدرات الطلاب والشباب.</p>
+          <p className="font-bold text-slate-300">
+            {isAr ? "نظام تقييم الذكاءات المتعددة الشامل" : "Multiple Intelligences Assessment System"} © {new Date().getFullYear()}
+          </p>
+          <p className="text-[10px] text-slate-500">
+            {isAr ? "تم تطوير البرنامج بالكامل بالتكامل مع إدارة التعليم ورعاية الموهوبين لدعم قدرات الطلاب والشباب." : "Assessment interface for student and youth development reports."}
+          </p>
         </div>
       </footer>
 
@@ -896,22 +1004,26 @@ export default function App() {
       {showResetConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-right shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            <h3 className="font-extrabold text-base text-slate-900 mb-2">إعادة إجراء اختبار الذكاءات المتعددة</h3>
+            <h3 className="font-extrabold text-base text-slate-900 mb-2">
+              {isAr ? "إعادة إجراء اختبار الذكاءات المتعددة" : "Restart assessment"}
+            </h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-6">
-              هل أنت متأكد من رغبتك في مسح الجلسة والبدء من جديد؟ سيؤدي ذلك لمسح جميع إجاباتك الحالية والعودة لصفحة الترحيب.
+              {isAr
+                ? "هل أنت متأكد من رغبتك في مسح الجلسة والبدء من جديد؟ سيؤدي ذلك لمسح جميع إجاباتك الحالية والعودة لصفحة الترحيب."
+                : "Are you sure you want to clear the current session and start again?"}
             </p>
             <div className="flex gap-3 justify-end items-center">
               <button
                 onClick={() => setShowResetConfirm(false)}
                 className="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 rounded-xl transition"
               >
-                تراجع وإلغاء
+                {isAr ? "تراجع وإلغاء" : "Cancel"}
               </button>
               <button
                 onClick={handleResetQuiz}
                 className="px-5 py-2.5 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-md shadow-rose-600/15"
               >
-                نعم، ابدأ من جديد
+                {isAr ? "نعم، ابدأ من جديد" : "Yes, restart"}
               </button>
             </div>
           </div>

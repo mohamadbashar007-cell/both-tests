@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "hash-admin-password": "node scripts/hash-admin-password.mjs",
     "predeploy": "pnpm build",
     "deploy": "gh-pages -d dist -r https://github.com/mohamadbashar007-cell/both-tests.git",
     "preview": "vite preview",
